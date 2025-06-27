@@ -17,8 +17,8 @@ app = Flask(__name__)
 # --- Supabase Connection ---
 # These lines read your secret Supabase URL and Key from the environment.
 # This is a secure way to handle secrets, never write them directly in the code.
-url = os.environ.get("SUPABASE_URL")
-key = os.environ.get("SUPABASE_KEY")
+url = os.environ.get("https://wsxnzuiinwzsmccsrovn.supabase.co")
+key = os.environ.get("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzeG56dWlpbnd6c21jY3Nyb3ZuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDUyNzMyNCwiZXhwIjoyMDY2MTAzMzI0fQ.4eQcHCMptP1YPl5OIGjte1mIDimrRZ-XR-w3Tc6b00s")
 
 # Check if the keys were found
 if not url or not key:
