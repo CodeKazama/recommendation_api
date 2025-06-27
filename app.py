@@ -31,10 +31,13 @@ if not url or not key:
 supabase: Client = create_client(url, key)
 print("✅ Successfully configured Supabase client.")
 
+# --- NLTK Downloader Fix ---
 # Download a small helper file for NLTK (our text processing library)
+# The try/except block now uses LookupError, which is the correct exception
+# for when a data package like 'punkt' is not found.
 try:
     nltk.data.find('tokenizers/punkt')
-except nltk.downloader.DownloadError:
+except LookupError:
     print("Downloading 'punkt' for NLTK...")
     nltk.download('punkt')
     print("Download complete.")
@@ -147,5 +150,3 @@ if __name__ == '__main__':
     # The host '0.0.0.0' makes the server publicly accessible.
     app.run(host='0.0.0.0', port=port)
     print(f"Example app listening on port {port}")
-
-
