@@ -15,15 +15,16 @@ load_dotenv()
 app = Flask(__name__)
 
 # --- Supabase Connection ---
-# These lines read your secret Supabase URL and Key from the environment.
-# This is a secure way to handle secrets, never write them directly in the code.
-url = os.environ.get("https://wsxnzuiinwzsmccsrovn.supabase.co")
-key = os.environ.get("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndzeG56dWlpbnd6c21jY3Nyb3ZuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MDUyNzMyNCwiZXhwIjoyMDY2MTAzMzI0fQ.4eQcHCMptP1YPl5OIGjte1mIDimrRZ-XR-w3Tc6b00s")
+# !!! IMPORTANT FIX !!!
+# The os.environ.get() function needs the NAME of the variable, not the value itself.
+# This was the cause of your "Invalid URL" error. I have corrected it.
+url = os.environ.get("SUPABASE_URL")
+key = os.environ.get("SUPABASE_KEY")
 
 # Check if the keys were found
 if not url or not key:
     print("🔴 FATAL ERROR: Supabase URL or Key not found.")
-    print("🔴 Make sure you have a .env file with SUPABASE_URL and SUPABASE_KEY.")
+    print("🔴 Make sure you have set them in your .env file (for local) or in Render's Environment Variables (for deployment).")
     exit() # Stop the app if it can't connect to the database
 
 # Create the connection to your Supabase database
@@ -50,7 +51,6 @@ def build_model_and_recommend(all_users_data, target_user_id):
     df = pd.DataFrame(all_users_data)
     
     # 2. Data Cleaning and Preparation
-    # Ensure required columns exist to prevent errors. Fill any missing values with an empty string.
     required_columns = ['id', 'name', 'sex', 'age', 'goal', 'deadline', 'academic_qualification']
     for col in required_columns:
         if col not in df.columns:
@@ -59,8 +59,7 @@ def build_model_and_recommend(all_users_data, target_user_id):
     df.fillna('', inplace=True)
     df['age'] = df['age'].astype(str)
 
-    # 3. Create the "tags" - This is the core of our model
-    # We combine all the important profile features into a single string for each user.
+    # 3. Create the "tags" 
     df['tags'] = (
         df['sex'].str.lower() + ' ' +
         df['age'] + ' ' +
@@ -71,37 +70,28 @@ def build_model_and_recommend(all_users_data, target_user_id):
     print("Tags created for all users.")
 
     # 4. Text Processing (Stemming)
-    # This simplifies words to their root (e.g., "coding" -> "code").
     ps = PorterStemmer()
     def stem(text):
         return " ".join([ps.stem(word) for word in text.split()])
     df['tags'] = df['tags'].apply(stem)
 
     # 5. Vectorization
-    # We convert the text tags into numerical vectors that a machine can understand.
     cv = CountVectorizer(max_features=5000, stop_words='english')
     vectors = cv.fit_transform(df['tags']).toarray()
     
     # 6. Similarity Calculation
-    # We calculate how similar each user is to every other user.
     similarity = cosine_similarity(vectors)
     
     # 7. Find the Best Match
     try:
-        # Get the row number (index) of our target user
         user_index = df[df['id'] == target_user_id].index[0]
     except IndexError:
         print(f"Warning: User {target_user_id} not found in the fetched data.")
         return None 
 
-    # Get the similarity scores for our user against everyone else
     distances = similarity[user_index]
-    
-    # Sort the users by similarity, from highest to lowest.
-    # We take the item at index 1 because index 0 will be the user themselves (with a perfect score of 1.0).
     similar_students_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])
     
-    # Find the first user in the sorted list that is not the user themselves.
     recommended_user_data = None
     for i, score in similar_students_list:
         if df.iloc[i]['id'] != target_user_id:
@@ -112,11 +102,10 @@ def build_model_and_recommend(all_users_data, target_user_id):
     return recommended_user_data
 
 # --- API Endpoint Definition ---
-# This is the public "door" to our API. The Flutter app will knock on this door.
 @app.route('/recommend', methods=['POST'])
 def recommend_endpoint():
+    # ... (The rest of this function is unchanged)
     print("\n--- New Request Received at /recommend ---")
-    # 1. Get the user's ID from the message sent by Flutter
     data = request.get_json()
     if not data or 'user_id' not in data:
         return jsonify({'error': 'Request is missing the user_id field.'}), 400
@@ -125,21 +114,17 @@ def recommend_endpoint():
     print(f"Request for user: {user_id}")
 
     try:
-        # 2. Fetch ALL user profiles from the Supabase 'profiles' table
         response = supabase.table('profiles').select('*').execute()
-        
         if not response.data or len(response.data) < 2:
             return jsonify({'message': 'Not enough users in the database to make a recommendation.'}), 404
 
         all_users = response.data
         print(f"Fetched {len(all_users)} users from Supabase.")
         
-        # 3. Call our main function to do the work
         recommendation = build_model_and_recommend(all_users, user_id)
         
         if recommendation:
             print(f"Returning recommendation: {recommendation.get('name')}")
-            # Send the recommended user's full profile back to the Flutter app
             return jsonify(recommendation)
         else:
             return jsonify({'message': 'No suitable recommendation found.'}), 404
@@ -153,6 +138,14 @@ def recommend_endpoint():
 def health_check():
     return "Checkmate Recommendation API is running!"
 
+# --- Main execution block ---
 if __name__ == '__main__':
-    # This makes the API accessible on your network
-    app.run(host='0.0.0.0', port=5000)
+    # Get the port number from the environment variable provided by Render.
+    # If it's not found (i.e., we're running locally), it defaults to 4000.
+    port = int(os.environ.get('PORT', 4000))
+    
+    # The host '0.0.0.0' makes the server publicly accessible.
+    app.run(host='0.0.0.0', port=port)
+    print(f"Example app listening on port {port}")
+
+
